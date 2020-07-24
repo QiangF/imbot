@@ -23,8 +23,6 @@
 
 ;;; Commentary:
 ;; imbot is inspired by https://github.com/laishulu/emacs-smart-input-source
-;; imbot requires os input method that remembers the input state per application, such as fcitx
-;; fcitx change per application input method state before focus-out and focus-in hook
 
 ;;; Code:
 
@@ -198,6 +196,10 @@ with the old buffer, restore in the post-command-hook has to disabled."
 
 (defun imbot--toggle-punctuation ())
 
+;; some os input method remembers the input state per application, such as fcitx
+;; fcitx change per application input method state before focus-out and focus-in hook
+(defvar imbot--override-per-app-switch nil "override os input method manager per application switch")
+
 (defun imbot--hook-handler (add-or-remove)
   (when (boundp 'evil-mode)
     (funcall add-or-remove 'evil-insert-state-exit-hook #'imbot--deactivate-im)
@@ -206,6 +208,9 @@ with the old buffer, restore in the post-command-hook has to disabled."
     (funcall add-or-remove 'evil-emacs-state-exit-hook #'imbot--save-im-state)
     (funcall add-or-remove 'evil-insert-state-entry-hook #'imbot--restore-im-state)
     (funcall add-or-remove 'evil-emacs-state-entry-hook #'imbot--restore-im-state))
+  (when imbot--override-per-app-switch ()
+        (funcall add-or-remove 'focus-out-hook #'imbot--save-im-state)
+        (funcall add-or-remove 'focus-in-hook #'imbot--restore-im-state)))
   (funcall add-or-remove 'find-file-hook #'imbot--find-file-hook)
   (funcall add-or-remove 'post-self-insert-hook #'imbot--check-context)
   (funcall add-or-remove 'pre-command-hook #'imbot--pre-command-hook)
