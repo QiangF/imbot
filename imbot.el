@@ -3,7 +3,7 @@
 ;; URL: https://github.com/QiangF/imbot
 ;; Created: July 24th, 2020
 ;; Keywords: convenience
-;; Package-Requires: (emacs "25.1")
+;; Package-Requires: ((emacs "25.1"))
 ;; Version: 1.0
 
 ;; This file is not part of GNU Emacs.
