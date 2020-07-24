@@ -19,8 +19,8 @@ Just put the file on load-path, or install ~imbot~ from ~melpa~.
       ;; imbot--deactivate-im 
       ;; imbot--save-im-state 
       ;; 2. set the following to t if the input state is not saved
-      ;; during focusing and unfocusing using the mouse
-      (setq imbot--override-per-app-switch nil)
+      ;; during focusing and unfocusing emacs window using the mouse
+      (setq imbot--hook-into-focus-change nil)
    )
 
 #+END_SRC

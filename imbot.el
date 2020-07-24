@@ -3,7 +3,7 @@
 ;; URL: https://github.com/QiangF/imbot
 ;; Created: July 24th, 2020
 ;; Keywords: convenience
-;; Package-Requires: ((emacs "25.1"))
+;; Package-Requires: (emacs "25.1")
 ;; Version: 1.0
 
 ;; This file is not part of GNU Emacs.
@@ -196,9 +196,11 @@ with the old buffer, restore in the post-command-hook has to disabled."
 
 (defun imbot--toggle-punctuation ())
 
-;; some os input method remembers the input state per application, such as fcitx
-;; fcitx change per application input method state before focus-out and focus-in hook
-(defvar imbot--override-per-app-switch nil "override os input method manager per application switch")
+;; some os input method remembers the input state per application, such as fcitx.
+;; in such case there is no need to hook into focus change. actuall it will cause unpredictable
+;; race conditions, as fcitx changes per application input method state before focus hooks
+(defvar imbot--hook-into-focus-change nil
+  "set this to `t if the input method manager does not remember per app input state")
 
 (defun imbot--hook-handler (add-or-remove)
   (when (boundp 'evil-mode)
@@ -208,7 +210,7 @@ with the old buffer, restore in the post-command-hook has to disabled."
     (funcall add-or-remove 'evil-emacs-state-exit-hook #'imbot--save-im-state)
     (funcall add-or-remove 'evil-insert-state-entry-hook #'imbot--restore-im-state)
     (funcall add-or-remove 'evil-emacs-state-entry-hook #'imbot--restore-im-state))
-  (when imbot--override-per-app-switch 
+  (when imbot--hook-into-focus-change
     (funcall add-or-remove 'focus-out-hook #'imbot--save-im-state)
     (funcall add-or-remove 'focus-in-hook #'imbot--restore-im-state))
   (funcall add-or-remove 'find-file-hook #'imbot--find-file-hook)
