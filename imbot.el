@@ -24,6 +24,7 @@
 ;;; Commentary:
 ;; imbot is inspired by https://github.com/laishulu/emacs-smart-input-source
 ;; imbot requires os input method that remembers the input state per application, such as fcitx
+;; fcitx change per application input method state before focus-out and focus-in hook
 
 ;;; Code:
 
@@ -208,9 +209,7 @@ with the old buffer, restore in the post-command-hook has to disabled."
   (funcall add-or-remove 'find-file-hook #'imbot--find-file-hook)
   (funcall add-or-remove 'post-self-insert-hook #'imbot--check-context)
   (funcall add-or-remove 'pre-command-hook #'imbot--pre-command-hook)
-  (funcall add-or-remove 'post-command-hook #'imbot--post-command-hook)
-  (funcall add-or-remove 'focus-out-hook #'imbot--save-im-state)
-  (funcall add-or-remove 'focus-in-hook #'imbot--restore-im-state))
+  (funcall add-or-remove 'post-command-hook #'imbot--post-command-hook))
 
 (define-minor-mode imbot-mode
   "input method manage bot"
