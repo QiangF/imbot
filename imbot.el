@@ -3,7 +3,7 @@
 ;; URL: https://github.com/QiangF/imbot
 ;; Created: July 24th, 2020
 ;; Keywords: convenience
-;; Package-Requires: (emacs "25.1")
+;; Package-Requires: ((emacs "25.1"))
 ;; Version: 1.0
 
 ;; This file is not part of GNU Emacs.
@@ -44,17 +44,21 @@
      (aref output 0) ?2)))
 
 (defun imbot--activate-im ()
+  (setq current-input-method t)
   (call-process imbot-command nil nil nil "-o"))
 
 (defun imbot--deactivate-im ()
+  (setq current-input-method nil)
   (call-process imbot-command nil nil nil "-c"))
 
-(defun imbot--save-im-state ()
+(defun imbot--save ()
   (unless (minibufferp)
     (setq imbot--im-active (imbot--im-active-p))))
 
-;; Input source specific cursor color and type
-(defun imbot--restore-im-state ()
+;; Input source specific cursor color and type, or you can use cursor-chg.el
+;; unless current-input-method is toggled together input method change with a hot key,
+;; cursor color is not updated untill imbot--restore is called.
+(defun imbot--restore ()
   (unless (minibufferp)
     (if imbot--im-active
         (progn
@@ -67,7 +71,7 @@
 
 ;; CAUTION: disable imbot-mode before looking up key definition start with imbot--prefix-override-keys
 (defvar imbot--prefix-override-keys
-  '("C-c" "C-x" "C-h"))
+  '("C-c" "C-x" "C-h" "<f1>"))
 
 (defvar imbot--prefix-override-map-alist nil)
 
@@ -81,15 +85,13 @@
 
 (defvar imbot--prefix-override nil "imbot prefix override state")
 
-(defvar imbot--last-buffer nil)
-
 (defun imbot--prefix-override-handler (arg)
   "Prefix key handler with ARG."
   (interactive "P")
   (let* ((keys (this-command-keys)))
     ;; temporarily disable prefix override
     (setq imbot--prefix-override nil)
-    (imbot--save-im-state)
+    (imbot--save)
     (imbot--deactivate-im)
     ;; Restore the prefix arg
     (setq prefix-arg arg)
@@ -104,19 +106,31 @@
 (defvar imbot--disable-restore nil)
 
 (defun imbot--find-file-hook ()
-  "find file hook is run before post command hook, which is run in the window
-with the old buffer, restore in the post-command-hook has to disabled."
   (setq imbot--disable-restore t)
   (imbot--deactivate-im))
+
+(defvar imbot--last-post-command-position 0
+  "Holds the cursor position from the last run of post-command-hooks.")
+
+(make-variable-buffer-local 'imbot--last-post-command-position)
+
+(defvar imbot--last-buffer nil)
+
+(defvar imbot--check-for-new-buffer nil)
 
 (defun imbot--pre-command-hook ()
   ;; for command that changes buffer, save the last buffer before change happens
   (setq imbot--last-buffer (current-buffer)))
 
+;; hydra-curr-map is a variable in hydra, it is non-nil when hydra is active
+(defvar hydra-curr-map nil)
+
 (defun imbot--post-command-hook ()
-  (let ((prefix-override-command-finished-p (and (not imbot--prefix-override)
-                                                 this-command))
-        (same-buffer (eq imbot--last-buffer (current-buffer))))
+  (let* ((prefix-override-command-finished-p (and (not imbot--prefix-override)
+                                                  (not hydra-curr-map)
+                                                  this-command))
+         (current-buffer (current-buffer))
+         (same-buffer (eq imbot--last-buffer current-buffer)))
     ;; 1. maybe save im state
     ;; no need to save im state if buffer does not change
     (unless same-buffer
@@ -125,20 +139,28 @@ with the old buffer, restore in the post-command-hook has to disabled."
                  (buffer-live-p imbot--last-buffer))
         ;; save im state for previous buffer
         (with-current-buffer imbot--last-buffer
-          (imbot--save-im-state))))
+          (imbot--save))))
     ;; 2. restore im state in current buffer after a override prefix sequence or buffer change
     (when (or prefix-override-command-finished-p 
               (not same-buffer))
       (if imbot--disable-restore
           (setq imbot--disable-restore nil)
-          (imbot--restore-im-state)))
+          (imbot--restore)))
     ;; 3. init minibuffer im state
     (when (and (minibufferp)
                (not same-buffer))
       (imbot--deactivate-im))
     ;; 4. reset prefix override after prefix sequence completed
     (when prefix-override-command-finished-p 
-      (setq imbot--prefix-override t))))
+      (setq imbot--prefix-override t))
+    ;; 5. check context for inline editing condition
+    (unless (equal (point) imbot--last-post-command-position)
+      (imbot--check-context)
+      (setq imbot--last-post-command-position (point)))
+    ;; some functions like find-file changes buffer after post-command-hook
+    ;; so save it here for handling of new buffer creation using buffer-list-update-hook
+    (setq imbot--last-buffer current-buffer
+          imbot--check-for-new-buffer t)))
 
 (defun imbot--prefix-override-add (&optional args)
   (add-to-list 'emulation-mode-map-alists 'imbot--prefix-override-map-alist))
@@ -205,18 +227,32 @@ with the old buffer, restore in the post-command-hook has to disabled."
 (defun imbot--hook-handler (add-or-remove)
   (when (boundp 'evil-mode)
     (funcall add-or-remove 'evil-insert-state-exit-hook #'imbot--deactivate-im)
-    (funcall add-or-remove 'evil-insert-state-exit-hook #'imbot--save-im-state)
+    (funcall add-or-remove 'evil-insert-state-exit-hook #'imbot--save)
     (funcall add-or-remove 'evil-emacs-state-exit-hook #'imbot--deactivate-im)
-    (funcall add-or-remove 'evil-emacs-state-exit-hook #'imbot--save-im-state)
-    (funcall add-or-remove 'evil-insert-state-entry-hook #'imbot--restore-im-state)
-    (funcall add-or-remove 'evil-emacs-state-entry-hook #'imbot--restore-im-state))
+    (funcall add-or-remove 'evil-emacs-state-exit-hook #'imbot--save)
+    (funcall add-or-remove 'evil-insert-state-entry-hook #'imbot--restore)
+    (funcall add-or-remove 'evil-emacs-state-entry-hook #'imbot--restore))
   (when imbot--hook-into-focus-change
-    (funcall add-or-remove 'focus-out-hook #'imbot--save-im-state)
-    (funcall add-or-remove 'focus-in-hook #'imbot--restore-im-state))
+    (funcall add-or-remove 'focus-out-hook #'imbot--save)
+    (funcall add-or-remove 'focus-in-hook #'imbot--restore))
+  ;; there is an overlap in functionality between file-file-hook and imbot--deactivate-im-in-new-buffer
+  ;; since there is a delay in calling buffer-list-update-hook
   (funcall add-or-remove 'find-file-hook #'imbot--find-file-hook)
-  (funcall add-or-remove 'post-self-insert-hook #'imbot--check-context)
+  ;; buffer-list-update-hook is needed for new buffer (eg. *help*) created without using find-file-hook
+  (funcall add-or-remove 'buffer-list-update-hook #'imbot--deactivate-im-in-new-buffer)
   (funcall add-or-remove 'pre-command-hook #'imbot--pre-command-hook)
   (funcall add-or-remove 'post-command-hook #'imbot--post-command-hook))
+
+;; commands such as counsel-find-file opens the minibuffer, which disables the input method,
+;; however the buffer is switched back to the buffer before find file intermitantly, if
+;; restore im state in the post-command-hook while the current buffer is the old buffer,
+;; new file buffer will inherite the input state, which is not predictable,
+;; so restore in the post-command-hook has to disabled or we deactivate im in the new buffer here.
+(defun imbot--deactivate-im-in-new-buffer ()
+    (when imbot--check-for-new-buffer
+      (unless (eq imbot--last-buffer (window-buffer))
+        (imbot--deactivate-im))
+      (setq imbot--check-for-new-buffer nil)))
 
 (define-minor-mode imbot-mode
   "input method manage bot"
