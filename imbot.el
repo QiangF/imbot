@@ -44,30 +44,32 @@
      (aref output 0) ?2)))
 
 (defun imbot--activate ()
-  (setq current-input-method t)
   (call-process imbot-command nil nil nil "-o"))
 
 (defun imbot--deactivate ()
-  (setq current-input-method nil)
   (call-process imbot-command nil nil nil "-c"))
 
 (defun imbot--save ()
   (unless (minibufferp)
     (setq imbot--active (imbot--active-p))))
 
-;; Input source specific cursor color and type, or you can use cursor-chg.el
-;; unless current-input-method is toggled together input method change with a hot key,
-;; cursor color is not updated untill imbot--restore is called.
+(defvar imbot--update-cursor-timer nil)
+
+(defun imbot--update-cursor (&optional no-query)
+  (let ((im-active (if no-query imbot--active (imbot--active-p))))
+    (if im-active 
+        (progn
+          (setq cursor-type 'hollow)
+          (set-cursor-color "green"))
+        (setq cursor-type 'bar)
+        (set-cursor-color "white"))))
+
 (defun imbot--restore ()
   (unless (minibufferp)
     (if imbot--active
-        (progn
-          (imbot--activate)
-          (setq cursor-type 'hollow)
-          (set-cursor-color "green"))
-        (imbot--deactivate)
-        (setq cursor-type 'bar)
-        (set-cursor-color "white"))))
+        (imbot--activate)
+        (imbot--deactivate)))
+  (imbot--update-cursor t))
 
 ;; CAUTION: disable imbot-mode before looking up key definition start with imbot--prefix-override-keys
 (defvar imbot--prefix-override-keys
@@ -271,13 +273,16 @@
         (imbot--prefix-override-add)
         ;; (advice-add #'generate-new-buffer :around #'imbot--new-buffer)
         (dolist (trigger imbot--prefix-reinstate-triggers)
-          (advice-add trigger :after #'imbot--prefix-override-add)))
+          (advice-add trigger :after #'imbot--prefix-override-add))
+        (setq imbot--update-cursor-timer
+              (run-with-idle-timer 2 nil 'imbot--update-cursor)))
       (progn
         (imbot--hook-handler 'remove-hook)
         (imbot--prefix-override-remove)
         ;; (advice-remove #'generate-new-buffer #'imbot--new-buffer)
         (dolist (trigger imbot--prefix-reinstate-triggers)
-          (advice-remove trigger #'imbot--prefix-override-add)))))
+          (advice-remove trigger #'imbot--prefix-override-add))
+        (cancel-timer imbot--update-cursor-timer))))
 
 (provide 'imbot)
 ;;; imbot.el ends here
