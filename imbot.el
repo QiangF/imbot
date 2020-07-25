@@ -120,6 +120,10 @@
 
 (defvar imbot--check-for-new-buffer nil)
 
+(defvar imbot--inline-edit-enable t)
+
+(defvar imbot--overlay nil)
+
 (defun imbot--pre-command-hook ()
   ;; for command that changes buffer, save the last buffer before change happens
   (setq imbot--last-buffer (current-buffer)))
@@ -156,9 +160,10 @@
     (when prefix-override-command-finished-p 
       (setq imbot--prefix-override t))
     ;; 5. check context for inline editing condition
-    (unless (equal (point) imbot--last-post-command-position)
-      (imbot--check-context)
-      (setq imbot--last-post-command-position (point)))
+    (when imbot--inline-edit-enable
+      (unless (equal (point) imbot--last-post-command-position)
+        (imbot--check-context)
+        (setq imbot--last-post-command-position (point))))
     ;; some functions like find-file changes buffer after post-command-hook
     ;; so save it here for handling of new buffer creation using buffer-list-update-hook
     (setq imbot--last-buffer current-buffer
@@ -195,7 +200,8 @@
      (looking-back "[a-zA-Z0-9\\-]" (max (line-beginning-position) (1- (point)))))))
 
 (defun imbot--check-context()
-  (when (imbot--english-context-p)
+  (when (and (not (overlayp imbot--overlay))
+             (imbot--english-context-p))
     (imbot--deactivate)
     (setq imbot--overlay (make-overlay (line-beginning-position) (line-end-position) nil t t ))
     (overlay-put imbot--overlay 'face 'imbot--inline-face)
