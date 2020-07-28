@@ -57,11 +57,8 @@
 
 (defun imbot--update-cursor (&optional no-query)
   (let ((im-active (if no-query imbot--active (imbot--active-p))))
-    (if im-active 
-        (progn
-          (setq cursor-type 'hollow)
-          (set-cursor-color "green"))
-        (setq cursor-type 'bar)
+    (if im-active
+        (set-cursor-color "green")
         (set-cursor-color "white"))))
 
 (defun imbot--restore ()
@@ -190,6 +187,12 @@
  :underline t
  :inverse-video t)
 
+(defun imbot--english-only-p ()
+  "buffer is in prog-mode orconf-mode, and buffer string is not in a string or comment"
+  (when (derived-mode-p 'prog-mode 'conf-mode)
+    (not (or (nth 3 (syntax-ppss))
+             (nth 4 (syntax-ppss))))))
+
 (defun imbot--english-context-p ()
   (when (imbot--active-p)
     (or
@@ -200,18 +203,21 @@
      (looking-back "[a-zA-Z0-9\\-]" (max (line-beginning-position) (1- (point)))))))
 
 (defun imbot--check-context()
-  (when (and (not (overlayp imbot--overlay))
-             (imbot--english-context-p))
-    (imbot--deactivate)
-    (setq imbot--overlay (make-overlay (line-beginning-position) (line-end-position) nil t t ))
-    (overlay-put imbot--overlay 'face 'imbot--inline-face)
-    (overlay-put imbot--overlay 'keymap
-                 (let ((keymap (make-sparse-keymap)))
-                   (define-key keymap (kbd "RET")
-                     #'imbot--inline-edit-deactivate)
-                   (define-key keymap (kbd "<return>")
-                     #'imbot--inline-edit-deactivate)
-                   keymap))))
+  (let ((english-context (and (not (overlayp imbot--overlay))
+                              (imbot--english-context-p)))
+        (region-english-only (imbot--english-only-p)))
+    (when (or english-context region-english-only)
+      (imbot--deactivate))
+    (when (and english-context (not region-english-only))
+      (setq imbot--overlay (make-overlay (line-beginning-position) (line-end-position) nil t t ))
+      (overlay-put imbot--overlay 'face 'imbot--inline-face)
+      (overlay-put imbot--overlay 'keymap
+                   (let ((keymap (make-sparse-keymap)))
+                     (define-key keymap (kbd "RET")
+                       #'imbot--inline-edit-deactivate)
+                     (define-key keymap (kbd "<return>")
+                       #'imbot--inline-edit-deactivate)
+                     keymap)))))
 
 (defun imbot--inline-edit-deactivate ()
   "Deactivate the inline region overlay."
@@ -258,6 +264,10 @@
     (funcall add-or-remove 'evil-emacs-state-exit-hook #'imbot--save)
     (funcall add-or-remove 'evil-insert-state-entry-hook #'imbot--restore)
     (funcall add-or-remove 'evil-emacs-state-entry-hook #'imbot--restore))
+  (when (boundp 'god-local-mode)
+    (funcall add-or-remove 'god-mode-enabled-hook #'imbot--deactivate)
+    (funcall add-or-remove 'god-mode-enabled-hook #'imbot--save)
+    (funcall add-or-remove 'god-mode-disabled-hook #'imbot--restore))
   (when imbot--hook-into-focus-change
     (funcall add-or-remove 'focus-out-hook #'imbot--save)
     (funcall add-or-remove 'focus-in-hook #'imbot--restore))
