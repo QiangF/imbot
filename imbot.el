@@ -106,11 +106,11 @@
   (setq imbot--prefix-override-map-alist
         `((imbot--prefix-override . ,keymap))))
 
-(defun imbot--prefix-override-add ()
+(defun imbot--prefix-override-add (&optional args)
   "Setup emulation-mode-map-alist"
   (add-to-list 'emulation-mode-map-alists 'imbot--prefix-override-map-alist))
 
-(defun imbot--prefix-override-remove ()
+(defun imbot--prefix-override-remove (&optional args)
   "Unset emulation-mode-map-alist"
   (setq emulation-mode-map-alists
         (delq 'imbot--prefix-override-map-alist emulation-mode-map-alists)))
