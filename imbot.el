@@ -318,6 +318,7 @@
   (funcall add-or-remove 'pre-command-hook #'imbot--pre-command-hook)
   (funcall add-or-remove 'post-command-hook #'imbot--post-command-hook))
 
+;;;###autoload
 (define-minor-mode imbot-mode
   "Input method manage bot"
   :global t
