@@ -1,4 +1,4 @@
-;;; imbot.el --- an input method management bot: automatic system input method switch -*- lexical-binding: t; -*-
+;;; imbot.el --- Automatic system input method switcher -*- lexical-binding: t; -*-
 
 ;; URL: https://github.com/QiangF/imbot
 ;; Created: July 24th, 2020
@@ -23,18 +23,34 @@
 
 ;;; Commentary:
 ;; imbot is inspired by https://github.com/laishulu/emacs-smart-input-source
+;; use it like this:
+;; (use-package imbot
+;;  :hook (evil-mode . imbot-mode)
+;;  :config
+;;    ;; 1. redefine these functions if you are not using fcitx-remote
+;;    ;; imbot--active-p 
+;;    ;; imbot--activate
+;;    ;; imbot--deactivate 
+;;    ;; imbot--save 
+;;    ;; 2. set the following to t if the input state is not saved
+;;    ;; during focusing and unfocusing emacs window using the mouse
+;;    (setq imbot--hook-into-focus-change nil
+;;          imbot--inline-edit-enable t))
 
 ;;; Code:
 
 (require 'subr-x)
 
-(defvar imbot-command "fcitx-remote")
-
-(defvar imbot--active nil "buffer local input method state")
+(defvar imbot--active nil
+  "Buffer local input method state")
 
 (make-variable-buffer-local 'imbot--active)
 
+(defvar imbot-command "fcitx-remote"
+  "Input method management commangd")
+
 (defun imbot--active-p ()
+  "Return t when input method in non English state"
   (let ((output
           (let (deactivate-mark)
             (with-temp-buffer
@@ -44,24 +60,30 @@
      (aref output 0) ?2)))
 
 (defun imbot--activate ()
+  "Set input method in non English state"
   (call-process imbot-command nil nil nil "-o"))
 
 (defun imbot--deactivate ()
+  "Set input method in English state"
   (call-process imbot-command nil nil nil "-c"))
 
 (defun imbot--save ()
+  "Set buffer local input method state"
   (unless (minibufferp)
     (setq imbot--active (imbot--active-p))))
 
-(defvar imbot--update-cursor-timer nil)
+(defvar imbot--update-cursor-timer nil
+  "Timer for updating cursor color")
 
 (defun imbot--update-cursor (&optional no-query)
+  "Set cursor color according to input method state"
   (let ((im-active (if no-query imbot--active (imbot--active-p))))
     (if im-active
         (set-cursor-color "green")
         (set-cursor-color "white"))))
 
 (defun imbot--restore ()
+  "Restore buffer local input method state"
   (unless (minibufferp)
     (if imbot--active
         (imbot--activate)
@@ -70,9 +92,11 @@
 
 ;; CAUTION: disable imbot-mode before looking up key definition start with imbot--prefix-override-keys
 (defvar imbot--prefix-override-keys
-  '("C-c" "C-x" "C-h" "<f1>"))
+  '("C-c" "C-x" "C-h" "<f1>")
+  "Prefix keys that disable input method temperarily")
 
-(defvar imbot--prefix-override-map-alist nil)
+(defvar imbot--prefix-override-map-alist nil
+  "An emulation-mode-map-alists keymap")
 
 (let ((keymap (make-sparse-keymap)))
   (dolist (prefix
@@ -82,10 +106,24 @@
   (setq imbot--prefix-override-map-alist
         `((imbot--prefix-override . ,keymap))))
 
-(defvar imbot--prefix-override nil "imbot prefix override state")
+(defun imbot--prefix-override-add ()
+  "Setup emulation-mode-map-alist"
+  (add-to-list 'emulation-mode-map-alists 'imbot--prefix-override-map-alist))
+
+(defun imbot--prefix-override-remove ()
+  "Unset emulation-mode-map-alist"
+  (setq emulation-mode-map-alists
+        (delq 'imbot--prefix-override-map-alist emulation-mode-map-alists)))
+
+(defvar imbot--prefix-reinstate-triggers
+  '(evil-local-mode yas-minor-mode eaf-mode)
+  "handle modes that mess with `emulation-mode-map-alists")
+
+(defvar imbot--prefix-override nil
+  "Imbot prefix override state")
 
 (defun imbot--prefix-override-handler (arg)
-  "Prefix key handler with ARG."
+  "Prefix key handler with ARG"
   (interactive "P")
   (let* ((keys (this-command-keys)))
     ;; temporarily disable prefix override
@@ -102,35 +140,41 @@
           (append (mapcar (lambda (e) `(t . ,e)) (listify-key-sequence keys))
                   unread-command-events))))
 
-(defvar imbot--disable-restore nil)
+(defvar imbot--disable-restore nil
+  "Disable restore for current command")
 
 (defun imbot--find-file-hook ()
+  "Disable restore in find-file-hook"
   (setq imbot--disable-restore t)
   (imbot--deactivate))
 
 (defvar imbot--last-post-command-position 0
-  "Holds the cursor position from the last run of post-command-hooks.")
+  "Holds the cursor position from the last run of post-command-hooks")
 
 (make-variable-buffer-local 'imbot--last-post-command-position)
 
-(defvar imbot--last-buffer nil)
+(defvar imbot--last-buffer nil
+  "Buffer at the start of an interactive command")
 
-(defvar imbot--check-for-new-buffer nil)
+(defvar imbot--check-for-new-buffer nil
+  "Check if new buffer created due to an interactive command")
 
-(defvar imbot--inline-edit-enable t)
+(defvar imbot--inline-edit-enable t
+  "Enable inline auto switch to English input state")
 
-(defvar imbot--overlay nil)
+(defvar imbot--overlay nil
+  "Inline editing overlay")
 
 (defun imbot--pre-command-hook ()
-  ;; for command that changes buffer, save the last buffer before change happens
+  "For command that changes buffer, save the last buffer before change happens"
   (setq imbot--last-buffer (current-buffer)))
 
 ;; hydra-curr-map is a variable in hydra, it is non-nil when hydra is active
-(defvar hydra-curr-map nil)
-
 (defun imbot--post-command-hook ()
+  "The main input state processor"
   (let* ((prefix-override-command-finished-p (and (not imbot--prefix-override)
-                                                  (not hydra-curr-map)
+                                                  (not (and (boundp hydra-curr-map)
+                                                            hydra-curr-map))
                                                   this-command))
          (current-buffer (current-buffer))
          (same-buffer (eq imbot--last-buffer current-buffer)))
@@ -144,7 +188,7 @@
         (with-current-buffer imbot--last-buffer
           (imbot--save))))
     ;; 2. restore im state in current buffer after a override prefix sequence or buffer change
-    (when (or prefix-override-command-finished-p 
+    (when (or prefix-override-command-finished-p
               (not same-buffer))
       (if imbot--disable-restore
           (setq imbot--disable-restore nil)
@@ -154,7 +198,7 @@
                (not same-buffer))
       (imbot--deactivate))
     ;; 4. reset prefix override after prefix sequence completed
-    (when prefix-override-command-finished-p 
+    (when prefix-override-command-finished-p
       (setq imbot--prefix-override t))
     ;; 5. check context for inline editing condition
     (when imbot--inline-edit-enable
@@ -166,19 +210,8 @@
     (setq imbot--last-buffer current-buffer
           imbot--check-for-new-buffer t)))
 
-(defun imbot--prefix-override-add (&optional args)
-  (add-to-list 'emulation-mode-map-alists 'imbot--prefix-override-map-alist))
-
-(defun imbot--prefix-override-remove (&optional args)
-  (setq emulation-mode-map-alists
-        (delq 'imbot--prefix-override-map-alist emulation-mode-map-alists)))
-
-(defvar imbot--prefix-reinstate-triggers
-  '(evil-local-mode yas-minor-mode eaf-mode)
-  "handle modes that mess with `emulation-mode-map-alists")
-
 (defface imbot--inline-face '()
-  "face to show inline editing (input method temperarily disabled) is active"
+  "Face to show inline editing (input method temperarily disabled) is active"
   :group 'imbot)
 
 (set-face-attribute
@@ -188,12 +221,13 @@
  :inverse-video t)
 
 (defun imbot--english-only-p ()
-  "buffer is in prog-mode orconf-mode, and buffer string is not in a string or comment"
+  "Buffer is in prog-mode or conf-mode, and buffer string is not in a string or comment"
   (when (derived-mode-p 'prog-mode 'conf-mode)
     (not (or (nth 3 (syntax-ppss))
              (nth 4 (syntax-ppss))))))
 
 (defun imbot--english-context-p ()
+  "Return t if English should be inputed at cursor point"
   (when (imbot--active-p)
     (or
      ;; 中文后面紧接1个空格切换到英文输入
@@ -203,6 +237,7 @@
      (looking-back "[a-zA-Z0-9\\-]" (max (line-beginning-position) (1- (point)))))))
 
 (defun imbot--check-context()
+  "Check context"
   (let ((english-context (and (not (overlayp imbot--overlay))
                               (imbot--english-context-p)))
         (region-english-only (imbot--english-only-p)))
@@ -219,8 +254,11 @@
                        #'imbot--inline-edit-deactivate)
                      keymap)))))
 
+(declare-function company--active-p "ext:company.el")
+(declare-function company-complete-selection "ext:company.el")
+
 (defun imbot--inline-edit-deactivate ()
-  "Deactivate the inline region overlay."
+  "Deactivate the inline region overlay"
   (interactive)
   (if (and (featurep 'company)
            (company--active-p))
@@ -230,13 +268,11 @@
         (setq imbot--overlay nil)
         (imbot--activate))))
 
-(defun imbot--toggle-punctuation ())
-
 ;; some os input method remembers the input state per application, such as fcitx.
 ;; in such case there is no need to hook into focus change. actuall it will cause unpredictable
 ;; race conditions, as fcitx changes per application input method state before focus hooks
 (defvar imbot--hook-into-focus-change nil
-  "set this to `t if the input method manager does not remember per app input state")
+  "Set this to t if the input method manager does not remember per app input state")
 
 ;; commands such as counsel-find-file opens the minibuffer, which disables the input method,
 ;; however the buffer is switched back to the buffer before find file intermitantly, if
@@ -246,17 +282,20 @@
 ;; 2. deactivate im in the new buffer for now (there is a delay)
 ;; 3. advice generate-new-buffer or get-buffer-create (called too often)
 (defun imbot--deactivate-in-new-buffer ()
+  "Deactivate"
     (when imbot--check-for-new-buffer
       (unless (eq imbot--last-buffer (window-buffer))
         (imbot--deactivate))
       (setq imbot--check-for-new-buffer nil)))
 
 (defun imbot--new-buffer (orig-func &rest args)
+  "Function currently not used, it can be used as advice to generate-new-buffer"
   (let ((new-buffer (apply orig-func args)))
     (imbot--deactivate-in-new-buffer)
     new-buffer))
 
 (defun imbot--hook-handler (add-or-remove)
+  "Setup hooks"
   (when (boundp 'evil-mode)
     (funcall add-or-remove 'evil-insert-state-exit-hook #'imbot--deactivate)
     (funcall add-or-remove 'evil-insert-state-exit-hook #'imbot--save)
@@ -280,14 +319,13 @@
   (funcall add-or-remove 'post-command-hook #'imbot--post-command-hook))
 
 (define-minor-mode imbot-mode
-  "input method manage bot"
+  "Input method manage bot"
   :global t
   :init-value nil
   (if imbot-mode
       (progn
         (imbot--hook-handler 'add-hook)
         (imbot--prefix-override-add)
-        ;; (advice-add #'generate-new-buffer :around #'imbot--new-buffer)
         (dolist (trigger imbot--prefix-reinstate-triggers)
           (advice-add trigger :after #'imbot--prefix-override-add))
         (setq imbot--update-cursor-timer
@@ -295,7 +333,6 @@
       (progn
         (imbot--hook-handler 'remove-hook)
         (imbot--prefix-override-remove)
-        ;; (advice-remove #'generate-new-buffer #'imbot--new-buffer)
         (dolist (trigger imbot--prefix-reinstate-triggers)
           (advice-remove trigger #'imbot--prefix-override-add))
         (cancel-timer imbot--update-cursor-timer))))
