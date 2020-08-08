@@ -18,8 +18,8 @@
 ;; usage:
 ;; 1. redefine these functions if you are not using fcitx-remote:
 ;; imbot--active-p, imbot--activate, imbot--deactivate
-;; 2. maybe enable inline edit 
-;;   (setq imbot--inline-edit-enable t))
+;; 2. maybe disable inline edit 
+;;  (delq 'imbot--english-p imbot--suppression-predicates)
 ;; 3. add imbot-mode to relevant startup hooks
 ;;   (add-hook 'evil-mode-hook 'imbot-mode)
 
@@ -114,9 +114,6 @@
 (defvar imbot--last-buffer nil
   "Buffer at the start of an interactive command")
 
-(defvar imbot--inline-edit-enable t
-  "Enable inline auto switch to English input state")
-
 (defvar imbot--overlay nil
   "Inline editing overlay")
 
@@ -146,8 +143,7 @@
 
 (defun imbot--english-p ()
   "Check context"
-  (when (and imbot--inline-edit-enable
-             imbot--active-record)
+  (when imbot--active-record
     (let ((english-context (imbot--english-context-p))
           (english-region (imbot--english-region-p)))
       (when (overlayp imbot--overlay)
