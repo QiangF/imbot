@@ -154,9 +154,9 @@
         (delete-overlay imbot--overlay)
         (setq imbot--overlay nil))
       (when (imbot--english-context-p)
-          (progn
-            (setq imbot--overlay (make-overlay (line-beginning-position) (line-end-position) nil t t ))
-            (overlay-put imbot--overlay 'face 'imbot--inline-face)))
+        (unless english-region
+          (setq imbot--overlay (make-overlay (line-beginning-position) (line-end-position) nil t t ))
+          (overlay-put imbot--overlay 'face 'imbot--inline-face)))
       (or english-context english-region))))
 
 (defvar evil-normal-state-minor-mode nil
