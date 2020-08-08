@@ -200,6 +200,9 @@
 
 (defun imbot--post-command-hook ()
   "The main input state processor"
+  ;; When an editing command returns to the editor command loop, the buffer is still the original
+  ;; buffer, buffer change after Emacs automatically calls set-buffer on the buffer shown in the
+  ;; selected window.
   (run-with-timer 0 nil
                   (lambda ()
                     (if (imbot--suppressed-p)
