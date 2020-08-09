@@ -109,11 +109,6 @@
           (append (mapcar (lambda (e) `(t . ,e)) (listify-key-sequence keys))
                   unread-command-events))))
 
-(make-variable-buffer-local 'imbot--last-point)
-
-(defvar imbot--last-buffer nil
-  "Buffer at the start of an interactive command")
-
 (defvar imbot--overlay nil
   "Inline editing overlay")
 
@@ -209,8 +204,7 @@
                             (imbot--activate)
                             (imbot--deactivate))
                         (setq imbot--suppressed nil))
-                    (imbot--update-cursor)
-                    (setq imbot--last-buffer (current-buffer)))))
+                    (imbot--update-cursor))))
 
 (defun imbot--hook-handler (add-or-remove)
   "Setup hooks"
