@@ -5,23 +5,3 @@
 
 * Install
 Just put the file on load-path, or install ~imbot~ from ~melpa~.
-
-* Configure
-
-#+BEGIN_SRC lisp
-
-   (use-package imbot
-     :hook (evil-mode . imbot-mode)
-     :config
-      ;; 1. redefine these functions if you are not using fcitx-remote
-      ;; imbot--active-p 
-      ;; imbot--activate
-      ;; imbot--deactivate 
-      ;; imbot--save 
-      ;; 2. set the following to t if the input state is not saved
-      ;; during focusing and unfocusing emacs window using the mouse
-      (setq imbot--hook-into-focus-change nil
-            imbot--inlie-edit-enable t))
-
-#+END_SRC
-
