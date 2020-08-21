@@ -129,12 +129,14 @@
 
 (defun imbot--english-context-p ()
   "Return t if English should be inputed at cursor point."
-  (or
-   ;; 中文后面紧接1个空格切换到英文输入
-   ;; \cC represents any character of category “C”, according to “M-x describe-categories”
-   (looking-back "\\cc " (max (line-beginning-position) (- (point) 2)))
-   ;; 英文,数字后保持英文输入
-   (looking-back "[a-zA-Z0-9\\-]" (max (line-beginning-position) (1- (point))))))
+  (let ((line-beginning (line-beginning-position))
+        (point (point)))
+    (or
+     ;; 中文后面紧接1个空格切换到英文输入
+     ;; \cC represents any character of category “C”, according to “M-x describe-categories”
+     (looking-back "\\cc " (max line-beginning (- point 2)))
+     (string-match "^\\s-*[0-9]+$" (buffer-substring-no-properties line-beginning point))
+     (looking-back "[a-zA-Z\\-]" (max line-beginning (1- point))))))
 
 (defun imbot--english-p ()
   "Check context."
