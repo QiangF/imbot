@@ -136,7 +136,7 @@
      ;; \cC represents any character of category “C”, according to “M-x describe-categories”
      (looking-back "\\cc " (max line-beginning (- point 2)))
      (string-match "^\\s-*[0-9]+$" (buffer-substring-no-properties line-beginning point))
-     (looking-back "[a-zA-Z\\-]" (max line-beginning (1- point))))))
+     (looking-back "[a-zA-Z\\-\\*]" (max line-beginning (1- point))))))
 
 (defun imbot--english-p ()
   "Check context."
@@ -168,8 +168,7 @@
       (equal real-this-command 'imbot--prefix-override-handler)))
 
 (defvar imbot--suppression-predicates
-  #'(imbot--english-p
-     imbot--prefix-override-p)
+  (list #'imbot--english-p #'imbot--prefix-override-p)
   "Conditions in which input method should be suppressed, in order of priority.")
 
 (defvar imbot--suppressed nil
