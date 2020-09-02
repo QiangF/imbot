@@ -27,19 +27,19 @@
 
 (require 'seq)
 
-(defvar imbot--active-record nil
-  "Buffer local input method state, changes only at manual input method toggle.")
+(defvar imbot--active-saved nil
+  "Buffer local input method state, changes only at manual input method toggling.")
 
-(make-variable-buffer-local 'imbot--active-record)
+(make-variable-buffer-local 'imbot--active-saved)
 
-(defvar imbot--active-real-time nil
-  "Real time input method state, is t when input method is active.")
+(defvar imbot--active-checked nil
+  "True input method state checked at pre-command-hook, is t whenever input method is active.")
 
 (defvar imbot-command "fcitx-remote"
   "Input method management command.")
 
 (defun imbot--active-p ()
-  "Return t when input method in non English state."
+  "Return t when input method is active (in non English state)."
   (let ((output
           (let (deactivate-mark)
             (with-temp-buffer
@@ -50,19 +50,19 @@
 
 (defun imbot--activate ()
   "Set input method in non English state."
-  (unless imbot--active-real-time
-    (setq imbot--active-real-time t)
+  (unless imbot--active-checked
+    (setq imbot--active-checked t)
     (call-process imbot-command nil nil nil "-o")))
 
 (defun imbot--deactivate ()
   "Set input method in English state."
-  (when imbot--active-real-time
-    (setq imbot--active-real-time nil)
+  (when imbot--active-checked
+    (setq imbot--active-checked nil)
     (call-process imbot-command nil nil nil "-c")))
 
 (defun imbot--update-cursor ()
   "Set cursor color according to input method state."
-  (if imbot--active-real-time
+  (if imbot--active-checked
       (set-cursor-color "green")
       (set-cursor-color "white")))
 
@@ -80,7 +80,7 @@
     (define-key keymap (kbd prefix)
       #'imbot--prefix-override-handler))
   (setq imbot--prefix-override-map-alist
-        `((imbot--active-real-time . ,keymap))))
+        `((imbot--active-checked . ,keymap))))
 
 (defun imbot--prefix-override-add (&optional _args)
   "Setup `emulation-mode-map-alist."
@@ -93,7 +93,7 @@
 
 (defvar imbot--prefix-reinstate-triggers
   '(evil-local-mode yas-minor-mode eaf-mode)
-  "Handle modes mess with `emulation-mode-map-alists.")
+  "Handle modes that mess `emulation-mode-map-alists.")
 
 (defun imbot--prefix-override-handler (arg)
   "Prefix key handler with ARG."
@@ -140,7 +140,7 @@
 
 (defun imbot--english-p ()
   "Check context."
-  (when imbot--active-record
+  (when imbot--active-saved
     (let ((english-context (imbot--english-context-p))
           (english-region (imbot--english-region-p)))
       (when (overlayp imbot--overlay)
@@ -154,12 +154,20 @@
 
 (defvar evil-normal-state-minor-mode)
 
+(defvar evil-visual-state-minor-mode)
+
+(defvar evil-motion-state-minor-mode)
+
 (defvar god-local-mode)
 
 (defvar hydra-curr-map)
 
 (defvar imbot--suppression-watch-list
-  '(evil-normal-state-minor-mode god-local-mode hydra-curr-map)
+  '(evil-normal-state-minor-mode
+    evil-visual-state-minor-mode
+    evil-motion-state-minor-mode
+    god-local-mode
+    hydra-curr-map)
   "Enable suppression if any variables in this list is t.")
 
 (defun imbot--prefix-override-p ()
@@ -177,11 +185,10 @@
 (make-variable-buffer-local 'imbot--suppressed)
 
 (defun imbot--pre-command-hook ()
-  "Update imbot--active-real-time in case input state is toggled not via Emacs."
-  (let ((imbot-active (imbot--active-p)))
-    (setq imbot--active-real-time imbot-active)
-    (unless imbot--suppressed
-      (setq imbot--active-record imbot-active))))
+  "Update imbot--active-checked in case input state is toggled not via Emacs."
+  (setq imbot--active-checked (imbot--active-p))
+  (unless imbot--suppressed
+    (setq imbot--active-saved imbot--active-checked)))
 
 (defun imbot--post-command-hook ()
   "The main input state processor."
@@ -195,7 +202,7 @@
                         (progn (setq imbot--suppressed t)
                                (imbot--deactivate))
                         ;; restore input state
-                        (if imbot--active-record
+                        (if imbot--active-saved
                             (imbot--activate)
                             (imbot--deactivate))
                         (setq imbot--suppressed nil))
