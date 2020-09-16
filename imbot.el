@@ -35,30 +35,37 @@
 (defvar imbot--active-checked nil
   "True input method state checked at pre-command-hook, is t whenever input method is active.")
 
-(defvar imbot-command "fcitx-remote"
+;; For fcitx, the command is "fcitx-remote"
+(defvar imbot-command "/usr/bin/ibus engine"
   "Input method management command.")
+
+;; For fcitx, the tag is "2"
+(defvar imbot-english-engine-tag "xkb:us::eng"
+  "Tag for the english engine.")
+
+;; For fcitx the switch is "-o"
+(defvar imbot-input-activate-switch "rime"
+  "Switch for the non english engine.")
+
+;; For fcitx the switch is "-c"
+(defvar imbot-input-deactivate-switch "xkb:us::eng"
+  "Switch for the english engine.")
 
 (defun imbot--active-p ()
   "Return t when input method is active (in non English state)."
-  (let ((output
-          (let (deactivate-mark)
-            (with-temp-buffer
-              (call-process imbot-command nil t)
-              (buffer-string)))))
-    (char-equal
-     (aref output 0) ?2)))
+  (not (string-equal (string-trim (shell-command-to-string imbot-command)) imbot-english-engine-tag)))
 
 (defun imbot--activate ()
   "Set input method in non English state."
   (unless imbot--active-checked
     (setq imbot--active-checked t)
-    (call-process imbot-command nil nil nil "-o")))
+    (call-process-shell-command (concat imbot-command " " imbot-input-activate-switch))))
 
 (defun imbot--deactivate ()
   "Set input method in English state."
   (when imbot--active-checked
     (setq imbot--active-checked nil)
-    (call-process imbot-command nil nil nil "-c")))
+    (call-process-shell-command (concat imbot-command " " imbot-input-deactivate-switch))))
 
 (defun imbot--update-cursor ()
   "Set cursor color according to input method state."
@@ -211,7 +218,9 @@
 (defun imbot--hook-handler (add-or-remove)
   "Setup hooks, ADD-OR-REMOVE."
   (funcall add-or-remove 'pre-command-hook #'imbot--pre-command-hook)
-  (funcall add-or-remove 'post-command-hook #'imbot--post-command-hook))
+  (funcall add-or-remove 'focus-out-hook #'imbot--pre-command-hook)
+  (funcall add-or-remove 'post-command-hook #'imbot--post-command-hook)
+  (funcall add-or-remove 'focus-in-hook #'imbot--post-command-hook))
 
 ;;;###autoload
 (define-minor-mode imbot-mode
