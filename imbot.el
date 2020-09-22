@@ -53,7 +53,8 @@
 
 (defun imbot--active-p ()
   "Return t when input method is active (in non English state)."
-  (not (string-equal (string-trim (shell-command-to-string imbot-command)) imbot-english-engine-tag)))
+  (not (string-equal
+        (string-trim (shell-command-to-string imbot-command)) imbot-english-engine-tag)))
 
 (defun imbot--activate ()
   "Set input method in non English state."
@@ -198,7 +199,7 @@
     (setq imbot--active-saved imbot--active-checked)))
 
 (defun imbot--post-command-hook ()
-  "The main input state processor."
+  "Restore input state."
   ;; When an editing command returns to the editor command loop, the buffer is still the original
   ;; buffer, buffer change after Emacs automatically calls set-buffer on the buffer shown in the
   ;; selected window.
@@ -215,12 +216,18 @@
                         (setq imbot--suppressed nil))
                     (imbot--update-cursor))))
 
+(defvar imbot-pre-command-hook-list '(pre-command-hook focus-out-hook)
+  "List of hook names to add `imbot--pre-command-hook into.")
+
+(defvar imbot-post-command-hook-list '(post-command-hook focus-in-hook dired-mode-hook)
+  "List of hook names to add `imbot--post-command-hook into.")
+
 (defun imbot--hook-handler (add-or-remove)
   "Setup hooks, ADD-OR-REMOVE."
-  (funcall add-or-remove 'pre-command-hook #'imbot--pre-command-hook)
-  (funcall add-or-remove 'focus-out-hook #'imbot--pre-command-hook)
-  (funcall add-or-remove 'post-command-hook #'imbot--post-command-hook)
-  (funcall add-or-remove 'focus-in-hook #'imbot--post-command-hook))
+  (dolist (hook-name imbot-pre-command-hook-list)
+    (funcall add-or-remove hook-name #'imbot--pre-command-hook))
+  (dolist (hook-name imbot-post-command-hook-list)
+    (funcall add-or-remove hook-name #'imbot--post-command-hook)))
 
 ;;;###autoload
 (define-minor-mode imbot-mode
