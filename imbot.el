@@ -178,9 +178,14 @@
     hydra-curr-map)
   "Enable suppression if any variables in this list is t.")
 
+(defvar imbot--suppression-major-mode
+  '(dired-mode)
+  "Enable suppression if buffer's major-mode matches any element of this list.")
+
 (defun imbot--prefix-override-p ()
   "This-command becomes non nil after prefix sequence completion."
   (or (equal last-command 'imbot--prefix-override-handler)
+      (member major-mode imbot--suppression-major-mode)
       (equal real-this-command 'imbot--prefix-override-handler)))
 
 (defvar imbot--suppression-predicates
