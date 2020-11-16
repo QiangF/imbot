@@ -16,12 +16,16 @@
 ;;; Commentary:
 ;; imbot is inspired by https://github.com/laishulu/emacs-smart-input-source
 ;; usage:
-;; 1. redefine these functions if you are not using fcitx-remote:
-;; imbot--active-p, imbot--activate, imbot--deactivate
-;; 2. maybe disable inline edit
-;;  (delq 'imbot--english-p imbot--suppression-predicates)
-;; 3. add imbot-mode to relevant startup hooks
-;;   (add-hook 'evil-mode-hook 'imbot-mode)
+;; emacs uses xim, make sure environment variables are set correctly, in case of ibus, eg:
+;; export XIM="ibus"
+;; export XIM_PROGRAM="ibus"
+;; ibus is slow in restoring application im state, make sure to share ibus state in all apllications 
+;; 1. redefine these functions according to your input method manager:
+;;    imbot--active-p, imbot--activate, imbot--deactivate
+;; 2. disable inline edit with:
+;;    (delq 'imbot--english-p imbot--suppression-predicates)
+;; 3. add imbot-mode to relevant startup hooks, eg:
+;;    (add-hook 'evil-mode-hook 'imbot-mode)
 
 ;;; Code:
 
@@ -39,7 +43,7 @@
 (defvar imbot-command "/usr/bin/ibus engine"
   "Input method management command.")
 
-;; For fcitx, the tag is "2"
+;; For fcitx, the tag is "1"
 (defvar imbot-english-engine-tag "xkb:us::eng"
   "Tag for the english engine.")
 
