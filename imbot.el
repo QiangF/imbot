@@ -22,9 +22,10 @@
 ;; ibus is slow in restoring application im state, make sure to share ibus state in all apllications 
 ;; 1. redefine these functions according to your input method manager:
 ;;    imbot--active-p, imbot--activate, imbot--deactivate
-;; 2. disable inline edit with:
+;; 2. disable inline english with:
 ;;    (delq 'imbot--english-p imbot--suppression-predicates)
-;; 3. add imbot-mode to relevant startup hooks, eg:
+;; 3. the key to exit inline english is return
+;; 4. add imbot-mode to relevant startup hooks, eg:
 ;;    (add-hook 'evil-mode-hook 'imbot-mode)
 
 ;;; Code:
@@ -122,10 +123,10 @@
                   unread-command-events))))
 
 (defvar imbot--overlay nil
-  "Inline editing overlay.")
+  "Inline english overlay.")
 
 (defface imbot--inline-face '()
-  "Face to show inline editing (input method temperarily disabled) is active."
+  "Face to show inline english (input method temperarily disabled) is active."
   :group 'imbot)
 
 (set-face-attribute
@@ -139,30 +140,48 @@
     (not (or (nth 3 (syntax-ppss))
              (nth 4 (syntax-ppss))))))
 
+(defun imbot--delete-overlay ()
+  (when (overlayp imbot--overlay)
+    (delete-overlay imbot--overlay)
+    (setq imbot--overlay nil)))
+
 (defun imbot--english-context-p ()
   "Return t if English should be inputed at cursor point."
-  (let ((line-beginning (line-beginning-position))
-        (point (point)))
-    (or
-     ;; 中文后面紧接1个空格切换到英文输入
-     ;; \cC represents any character of category “C”, according to “M-x describe-categories”
-     (looking-back "\\cc " (max line-beginning (- point 2)))
-     (string-match "^\\s-*[0-9]+$" (buffer-substring-no-properties line-beginning point))
-     (looking-back "[a-zA-Z\\-\\*]" (max line-beginning (1- point))))))
+  (unless (eq last-command 'imbot--inline-english-deactivate)
+    (let* ((line-beginning (line-beginning-position))
+           (point (point))
+           (english-context
+             (or
+              ;; 中文后面紧接1个空格切换到英文输入
+              ;; \cC represents any character of category “C”, according to “M-x describe-categories”
+              (looking-back "\\cc " (max line-beginning (- point 2)))
+              (string-match "^\\s-*[0-9]+$" (buffer-substring-no-properties line-beginning point))
+              (looking-back "[a-zA-Z\\-\\*]" (max line-beginning (1- point))))))
+      ;; remove the old overlay
+      (imbot--delete-overlay)
+      (when english-context
+        (progn (setq imbot--overlay (make-overlay (line-beginning-position) (line-end-position) nil t t ))
+               (overlay-put imbot--overlay 'face 'imbot--inline-face)
+               (overlay-put imbot--overlay 'keymap
+                            (let ((keymap (make-sparse-keymap)))
+                              (define-key keymap (kbd "RET")
+                                #'imbot--inline-english-deactivate)
+                              (define-key keymap (kbd "<return>")
+                                #'imbot--inline-english-deactivate)
+                              keymap))))
+      english-context)))
+
+(defun imbot--inline-english-deactivate ()
+  "Deactivate the inline english overlay."
+  (interactive)
+  (imbot--delete-overlay)
+  (imbot--activate))
 
 (defun imbot--english-p ()
   "Check context."
   (when imbot--active-saved
-    (let ((english-context (imbot--english-context-p))
-          (english-region (imbot--english-region-p)))
-      (when (overlayp imbot--overlay)
-        (delete-overlay imbot--overlay)
-        (setq imbot--overlay nil))
-      (when (imbot--english-context-p)
-        (unless english-region
-          (setq imbot--overlay (make-overlay (line-beginning-position) (line-end-position) nil t t ))
-          (overlay-put imbot--overlay 'face 'imbot--inline-face)))
-      (or english-context english-region))))
+    (or (imbot--english-region-p)
+        (imbot--english-context-p))))
 
 (defvar evil-normal-state-minor-mode)
 
@@ -183,7 +202,7 @@
   "Enable suppression if any variables in this list is t.")
 
 (defvar imbot--suppression-major-mode
-  '(dired-mode)
+  '(dired-mode debugger-mode)
   "Enable suppression if buffer's major-mode matches any element of this list.")
 
 (defun imbot--prefix-override-p ()
