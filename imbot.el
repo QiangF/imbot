@@ -58,20 +58,22 @@
 
 (defun imbot--active-p ()
   "Return t when input method is active (in non English state)."
-  (not (string-equal
-        (string-trim (shell-command-to-string imbot-command)) imbot-english-engine-tag)))
+  (with-temp-buffer
+    (call-process imbot-command nil t)
+    (not (string-equal (string-trim (buffer-string))
+                       imbot-english-engine-tag))))
 
 (defun imbot--activate ()
   "Set input method in non English state."
   (unless imbot--active-checked
     (setq imbot--active-checked t)
-    (call-process-shell-command (concat imbot-command " " imbot-input-activate-switch))))
+    (call-process (concat imbot-command " " imbot-input-activate-switch))))
 
 (defun imbot--deactivate ()
   "Set input method in English state."
   (when imbot--active-checked
     (setq imbot--active-checked nil)
-    (call-process-shell-command (concat imbot-command " " imbot-input-deactivate-switch))))
+    (call-process (concat imbot-command " " imbot-input-deactivate-switch))))
 
 (defun imbot--update-cursor ()
   "Set cursor color according to input method state."
@@ -208,7 +210,6 @@
 (defun imbot--prefix-override-p ()
   "This-command becomes non nil after prefix sequence completion."
   (or (equal last-command 'imbot--prefix-override-handler)
-      (member major-mode imbot--suppression-major-mode)
       (equal real-this-command 'imbot--prefix-override-handler)))
 
 (defvar imbot--suppression-predicates
@@ -234,7 +235,8 @@
   (run-with-timer 0 nil
                   (lambda ()
                     (if (or (eval `(or ,@imbot--suppression-watch-list))
-                            (seq-find 'funcall imbot--suppression-predicates nil))
+                            (seq-find 'funcall imbot--suppression-predicates nil)
+                            (member major-mode imbot--suppression-major-mode))
                         (progn (setq imbot--suppressed t)
                                (imbot--deactivate))
                         ;; restore input state
