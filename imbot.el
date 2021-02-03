@@ -65,15 +65,16 @@
 
 (defun imbot--activate ()
   "Set input method in non English state."
+  (imbot--delete-overlay)
   (unless imbot--active-checked
     (setq imbot--active-checked t)
-    (call-process (concat imbot-command " " imbot-input-activate-switch))))
+    (call-process imbot-command nil nil nil imbot-input-activate-switch)))
 
 (defun imbot--deactivate ()
   "Set input method in English state."
   (when imbot--active-checked
     (setq imbot--active-checked nil)
-    (call-process (concat imbot-command " " imbot-input-deactivate-switch))))
+    (call-process imbot-command nil nil nil imbot-input-deactivate-switch)))
 
 (defun imbot--update-cursor ()
   "Set cursor color according to input method state."
@@ -234,16 +235,15 @@
   ;; selected window.
   (run-with-timer 0 nil
                   (lambda ()
-                    (if (or (eval `(or ,@imbot--suppression-watch-list))
-                            (seq-find 'funcall imbot--suppression-predicates nil)
-                            (member major-mode imbot--suppression-major-mode))
-                        (progn (setq imbot--suppressed t)
-                               (imbot--deactivate))
-                        ;; restore input state
-                        (if imbot--active-saved
-                            (imbot--activate)
-                            (imbot--deactivate))
-                        (setq imbot--suppressed nil))
+                    (when imbot--active-saved
+                      (if (or (eval `(or ,@imbot--suppression-watch-list))
+                              (seq-find 'funcall imbot--suppression-predicates nil)
+                              (member major-mode imbot--suppression-major-mode))
+                          (progn (setq imbot--suppressed t)
+                                 (imbot--deactivate))
+                          ;; restore input state
+                          (imbot--activate)
+                          (setq imbot--suppressed nil)))
                     (imbot--update-cursor))))
 
 (defvar imbot-pre-command-hook-list '(pre-command-hook focus-out-hook)
@@ -254,6 +254,7 @@
 
 (defun imbot--hook-handler (add-or-remove)
   "Setup hooks, ADD-OR-REMOVE."
+  (funcall add-or-remove 'minibuffer-setup-hook 'imbot--deactivate)
   (dolist (hook-name imbot-pre-command-hook-list)
     (funcall add-or-remove hook-name #'imbot--pre-command-hook))
   (dolist (hook-name imbot-post-command-hook-list)
