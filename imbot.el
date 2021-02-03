@@ -162,7 +162,7 @@
               (looking-back "[a-zA-Z\\-\\*]" (max line-beginning (1- point))))))
       ;; remove the old overlay
       (imbot--delete-overlay)
-      (when english-context
+      (when (and imbot--active-checked english-context)
         (progn (setq imbot--overlay (make-overlay (line-beginning-position) (line-end-position) nil t t ))
                (overlay-put imbot--overlay 'face 'imbot--inline-face)
                (overlay-put imbot--overlay 'keymap
@@ -182,9 +182,8 @@
 
 (defun imbot--english-p ()
   "Check context."
-  (when imbot--active-saved
-    (or (imbot--english-region-p)
-        (imbot--english-context-p))))
+  (or (imbot--english-region-p)
+      (imbot--english-context-p)))
 
 (defvar evil-normal-state-minor-mode)
 
@@ -252,7 +251,7 @@
 (defvar imbot-post-command-hook-list '(post-command-hook focus-in-hook dired-mode-hook)
   "List of hook names to add `imbot--post-command-hook into.")
 
-(defun imbot--hook-handler (add-or-remove)
+(and imbot--active 
   "Setup hooks, ADD-OR-REMOVE."
   (funcall add-or-remove 'minibuffer-setup-hook 'imbot--deactivate)
   (dolist (hook-name imbot-pre-command-hook-list)
