@@ -65,7 +65,6 @@
 
 (defun imbot--activate ()
   "Set input method in non English state."
-  (imbot--delete-overlay)
   (unless imbot--active-checked
     (setq imbot--active-checked t)
     (call-process imbot-command nil nil nil imbot-input-activate-switch)))
@@ -144,15 +143,15 @@
              (nth 4 (syntax-ppss))))))
 
 (defun imbot--delete-overlay ()
-  (when (overlayp imbot--overlay)
-    (delete-overlay imbot--overlay)
-    (setq imbot--overlay nil)))
+  (delete-overlay imbot--overlay)
+  (setq imbot--overlay nil))
 
 (defun imbot--english-context-p ()
   "Return t if English should be inputed at cursor point."
   (unless (eq last-command 'imbot--inline-english-deactivate)
     (let* ((line-beginning (line-beginning-position))
            (point (point))
+           (overlay-active (overlayp imbot--overlay))
            (english-context
              (or
               ;; 中文后面紧接1个空格切换到英文输入
@@ -160,19 +159,24 @@
               (looking-back "\\cc " (max line-beginning (- point 2)))
               (string-match "^\\s-*[0-9]+$" (buffer-substring-no-properties line-beginning point))
               (looking-back "[a-zA-Z\\-\\*]" (max line-beginning (1- point))))))
-      ;; remove the old overlay
-      (imbot--delete-overlay)
-      (when (and imbot--active-checked english-context)
-        (progn (setq imbot--overlay (make-overlay (line-beginning-position) (line-end-position) nil t t ))
-               (overlay-put imbot--overlay 'face 'imbot--inline-face)
-               (overlay-put imbot--overlay 'keymap
-                            (let ((keymap (make-sparse-keymap)))
-                              (define-key keymap (kbd "RET")
-                                #'imbot--inline-english-deactivate)
-                              (define-key keymap (kbd "<return>")
-                                #'imbot--inline-english-deactivate)
-                              keymap))))
-      english-context)))
+      (if overlay-active
+          (if english-context
+              (progn (move-overlay imbot--overlay line-beginning (line-end-position))
+                     t)
+              (progn (imbot--delete-overlay)
+                     nil))
+          (if (and imbot--active-checked english-context)
+              (progn (setq imbot--overlay (make-overlay line-beginning (line-end-position) nil t t ))
+                     (overlay-put imbot--overlay 'face 'imbot--inline-face)
+                     (overlay-put imbot--overlay 'keymap
+                                  (let ((keymap (make-sparse-keymap)))
+                                    (define-key keymap (kbd "RET")
+                                      #'imbot--inline-english-deactivate)
+                                    (define-key keymap (kbd "<return>")
+                                      #'imbot--inline-english-deactivate)
+                                    keymap))
+                     t)
+              nil)))))
 
 (defun imbot--inline-english-deactivate ()
   "Deactivate the inline english overlay."
@@ -182,8 +186,9 @@
 
 (defun imbot--english-p ()
   "Check context."
-  (or (imbot--english-region-p)
-      (imbot--english-context-p)))
+  (when imbot--active-saved
+    (or (imbot--english-region-p)
+        (imbot--english-context-p))))
 
 (defvar evil-normal-state-minor-mode)
 
@@ -251,7 +256,7 @@
 (defvar imbot-post-command-hook-list '(post-command-hook focus-in-hook dired-mode-hook)
   "List of hook names to add `imbot--post-command-hook into.")
 
-(and imbot--active 
+(defun imbot--hook-handler (add-or-remove)
   "Setup hooks, ADD-OR-REMOVE."
   (funcall add-or-remove 'minibuffer-setup-hook 'imbot--deactivate)
   (dolist (hook-name imbot-pre-command-hook-list)
