@@ -226,13 +226,25 @@
 
 (make-variable-buffer-local 'imbot--suppressed)
 
-(defun imbot--pre-command-hook ()
-  "Update imbot--active-checked in case input state is toggled not via Emacs."
-  (setq imbot--active-checked (imbot--active-p))
+(defvar imbot--active-omit-check nil
+  "Omit setting imbot--active-checked when t.
+
+Checking at every command execution may cause the pre-command-function removed from pre-command-hook
+due to possible errors, so setting with emacsclient on im state change via hotkey outside emacs
+may be a better solution.")
+
+(defun imbot--pre-command-check ()
+  "Update imbot--active-checked."
+  (setq imbot--active-checked (imbot--active-p)))
+
+(defun imbot--pre-command-function ()
+  "Update imbot--active-saved."
+  (unless imbot--active-omit-check
+    (imbot--pre-command-check))
   (unless imbot--suppressed
     (setq imbot--active-saved imbot--active-checked)))
 
-(defun imbot--post-command-hook ()
+(defun imbot--post-command-check ()
   "Restore input state."
   ;; When an editing command returns to the editor command loop, the buffer is still the original
   ;; buffer, buffer change after Emacs automatically calls set-buffer on the buffer shown in the
@@ -250,19 +262,19 @@
                           (setq imbot--suppressed nil)))
                     (imbot--update-cursor))))
 
-(defvar imbot-pre-command-hook-list '(pre-command-hook focus-out-hook)
-  "List of hook names to add `imbot--pre-command-hook into.")
+(defvar imbot-pre-command-hook-list '(pre-command-hook)
+  "List of hook names to add imbot--pre-command functions into.")
 
-(defvar imbot-post-command-hook-list '(post-command-hook focus-in-hook dired-mode-hook)
-  "List of hook names to add `imbot--post-command-hook into.")
+(defvar imbot-post-command-hook-list '(post-command-hook dired-mode-hook)
+  "List of hook names to add `imbot--post-command-check into.")
 
 (defun imbot--hook-handler (add-or-remove)
   "Setup hooks, ADD-OR-REMOVE."
   (funcall add-or-remove 'minibuffer-setup-hook 'imbot--deactivate)
   (dolist (hook-name imbot-pre-command-hook-list)
-    (funcall add-or-remove hook-name #'imbot--pre-command-hook))
+    (funcall add-or-remove hook-name #'imbot--pre-command-function))
   (dolist (hook-name imbot-post-command-hook-list)
-    (funcall add-or-remove hook-name #'imbot--post-command-hook)))
+    (funcall add-or-remove hook-name #'imbot--post-command-check)))
 
 ;;;###autoload
 (define-minor-mode imbot-mode
