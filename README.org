@@ -5,3 +5,15 @@
 
 * Install
 Just put the file on load-path, or install ~imbot~ from ~melpa~.
+
+* Config
+
+    (use-package imbot
+    :hook
+        (evil-mode . imbot-mode)
+    :config
+        (setq imbot-command (or (locate-file "fcitx5-remote" exec-path)
+                            "fcitx-remote")
+            imbot-english-engine-tag "1"
+            imbot-input-activate-switch "-o"
+            imbot-input-deactivate-switch "-c"))

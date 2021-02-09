@@ -240,11 +240,12 @@ may be a better solution.")
 (defun imbot--pre-command-function ()
   "Update imbot--active-saved."
   (unless imbot--active-omit-check
+    (add-hook 'post-command-hook #'imbot--post-command-function -100)
     (imbot--pre-command-check))
   (unless imbot--suppressed
     (setq imbot--active-saved imbot--active-checked)))
 
-(defun imbot--post-command-check ()
+(defun imbot--post-command-function ()
   "Restore input state."
   ;; When an editing command returns to the editor command loop, the buffer is still the original
   ;; buffer, buffer change after Emacs automatically calls set-buffer on the buffer shown in the
@@ -260,13 +261,14 @@ may be a better solution.")
                           ;; restore input state
                           (imbot--activate)
                           (setq imbot--suppressed nil)))
+                    (add-hook 'pre-command-hook #'imbot--pre-command-function -100)
                     (imbot--update-cursor))))
 
 (defvar imbot-pre-command-hook-list '(pre-command-hook)
   "List of hook names to add imbot--pre-command functions into.")
 
 (defvar imbot-post-command-hook-list '(post-command-hook dired-mode-hook)
-  "List of hook names to add `imbot--post-command-check into.")
+  "List of hook names to add `imbot--post-command-function into.")
 
 (defun imbot--hook-handler (add-or-remove)
   "Setup hooks, ADD-OR-REMOVE."
@@ -274,7 +276,7 @@ may be a better solution.")
   (dolist (hook-name imbot-pre-command-hook-list)
     (funcall add-or-remove hook-name #'imbot--pre-command-function))
   (dolist (hook-name imbot-post-command-hook-list)
-    (funcall add-or-remove hook-name #'imbot--post-command-check)))
+    (funcall add-or-remove hook-name #'imbot--post-command-function)))
 
 ;;;###autoload
 (define-minor-mode imbot-mode
