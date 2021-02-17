@@ -4,16 +4,13 @@
 ~imbot~ removes the hassle of switching input method back and forth.
 
 * Install
-Just put the file on load-path, or install ~imbot~ from ~melpa~.
+Put the files on load-path, or install ~imbot~ from ~melpa~.
 
 * Config
+Please follow the imbot--im-config examples in imbot--fcitx5.el or imbot--ibus.el.
 
     (use-package imbot
-    :hook
-        (evil-mode . imbot-mode)
-    :config
-        (setq imbot-command (or (locate-file "fcitx5-remote" exec-path)
-                            "fcitx-remote")
-            imbot-english-engine-tag "1"
-            imbot-input-activate-switch "-o"
-            imbot-input-deactivate-switch "-c"))
+        :hook
+            (evil-mode . imbot-mode)
+        :config
+            (setq imbot--im-config 'imbot--fcitx5))
