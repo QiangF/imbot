@@ -13,11 +13,14 @@
       imbot-input-deactivate-switch "-c")
 
 (defun fcitx5-dbus-call-method (method)
-  (dbus-call-method :session
-                    "org.fcitx.Fcitx5"
-                    "/controller"
-                    "org.fcitx.Fcitx.Controller1"
-                    method))
+  (let ((event last-input-event)
+        (result (dbus-call-method :session
+                                  "org.fcitx.Fcitx5"
+                                  "/controller"
+                                  "org.fcitx.Fcitx.Controller1"
+                                  method)))
+    (setq last-input-event event)
+    result))
 
 (defun imbot--active-p ()
   (not (equal (fcitx5-dbus-call-method "State")
