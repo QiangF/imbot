@@ -40,40 +40,10 @@
 (defvar imbot--active-checked nil
   "True input method state checked at pre-command-hook, is t whenever input method is active.")
 
-;; For fcitx, the command is "fcitx-remote"
-(defvar imbot-command "/usr/bin/ibus engine"
-  "Input method management command.")
+(defvar imbot--im-config 'imbot--fcitx5
+  "User config file with the definition of `imbot--active-p, `imbot--activate, `imbot--deactivate.")
 
-;; For fcitx, the tag is "1"
-(defvar imbot-english-engine-tag "xkb:us::eng"
-  "Tag for the english engine.")
-
-;; For fcitx the switch is "-o"
-(defvar imbot-input-activate-switch "rime"
-  "Switch for the non english engine.")
-
-;; For fcitx the switch is "-c"
-(defvar imbot-input-deactivate-switch "xkb:us::eng"
-  "Switch for the english engine.")
-
-(defun imbot--active-p ()
-  "Return t when input method is active (in non English state)."
-  (with-temp-buffer
-    (call-process imbot-command nil t)
-    (not (string-equal (string-trim (buffer-string))
-                       imbot-english-engine-tag))))
-
-(defun imbot--activate ()
-  "Set input method in non English state."
-  (unless imbot--active-checked
-    (setq imbot--active-checked t)
-    (call-process imbot-command nil nil nil imbot-input-activate-switch)))
-
-(defun imbot--deactivate ()
-  "Set input method in English state."
-  (when imbot--active-checked
-    (setq imbot--active-checked nil)
-    (call-process imbot-command nil nil nil imbot-input-deactivate-switch)))
+(require `,imbot--im-config)
 
 (defun imbot--update-cursor ()
   "Set cursor color according to input method state."
@@ -239,8 +209,8 @@ may be a better solution.")
 
 (defun imbot--pre-command-function ()
   "Update imbot--active-saved."
+  (add-hook 'post-command-hook #'imbot--post-command-function -100)
   (unless imbot--active-omit-check
-    (add-hook 'post-command-hook #'imbot--post-command-function -100)
     (imbot--pre-command-check))
   (unless imbot--suppressed
     (setq imbot--active-saved imbot--active-checked)))
@@ -273,10 +243,16 @@ may be a better solution.")
 (defun imbot--hook-handler (add-or-remove)
   "Setup hooks, ADD-OR-REMOVE."
   (funcall add-or-remove 'minibuffer-setup-hook 'imbot--deactivate)
+  (funcall add-or-remove 'minibuffer-exit-hook 'imbot--post-command-function)
   (dolist (hook-name imbot-pre-command-hook-list)
     (funcall add-or-remove hook-name #'imbot--pre-command-function))
   (dolist (hook-name imbot-post-command-hook-list)
     (funcall add-or-remove hook-name #'imbot--post-command-function)))
+
+(defun imbot--non-interactive (orig-func &rest args)
+  (let ((pre-command-hook nil)
+        (post-command-hook nil))
+    (apply orig-func args)))
 
 ;;;###autoload
 (define-minor-mode imbot-mode
@@ -285,10 +261,12 @@ may be a better solution.")
   :init-value nil
   (if imbot-mode
       (progn
+        (advice-add #'execute-kbd-macro :around #'imbot--non-interactive)
         (imbot--hook-handler 'add-hook)
         (imbot--prefix-override-add)
         (dolist (trigger imbot--prefix-reinstate-triggers)
           (advice-add trigger :after #'imbot--prefix-override-add)))
+      (advice-remove #'execute-kbd-macro #'imbot--non-interactive)
       (imbot--hook-handler 'remove-hook)
       (imbot--prefix-override-remove)
       (dolist (trigger imbot--prefix-reinstate-triggers)
