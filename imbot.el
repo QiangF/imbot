@@ -209,8 +209,8 @@ may be a better solution.")
 
 (defun imbot--pre-command-function ()
   "Update imbot--active-saved."
+  (add-hook 'post-command-hook #'imbot--post-command-function -100)
   (unless imbot--active-omit-check
-    (add-hook 'post-command-hook #'imbot--post-command-function -100)
     (imbot--pre-command-check))
   (unless imbot--suppressed
     (setq imbot--active-saved imbot--active-checked)))
@@ -222,7 +222,8 @@ may be a better solution.")
   ;; selected window.
   (run-with-timer 0 nil
                   (lambda ()
-                    (when imbot--active-saved
+                    (when (or imbot--active-saved
+                              imbot--active-checked)
                       (if (or (eval `(or ,@imbot--suppression-watch-list))
                               (seq-find 'funcall imbot--suppression-predicates nil)
                               (member major-mode imbot--suppression-major-mode))
@@ -243,10 +244,16 @@ may be a better solution.")
 (defun imbot--hook-handler (add-or-remove)
   "Setup hooks, ADD-OR-REMOVE."
   (funcall add-or-remove 'minibuffer-setup-hook 'imbot--deactivate)
+  (funcall add-or-remove 'minibuffer-exit-hook 'imbot--post-command-function)
   (dolist (hook-name imbot-pre-command-hook-list)
     (funcall add-or-remove hook-name #'imbot--pre-command-function))
   (dolist (hook-name imbot-post-command-hook-list)
     (funcall add-or-remove hook-name #'imbot--post-command-function)))
+
+(defun imbot--non-interactive (orig-func &rest args)
+  (let ((pre-command-hook nil)
+        (post-command-hook nil))
+    (apply orig-func args)))
 
 ;;;###autoload
 (define-minor-mode imbot-mode
@@ -255,10 +262,12 @@ may be a better solution.")
   :init-value nil
   (if imbot-mode
       (progn
+        (advice-add #'execute-kbd-macro :around #'imbot--non-interactive)
         (imbot--hook-handler 'add-hook)
         (imbot--prefix-override-add)
         (dolist (trigger imbot--prefix-reinstate-triggers)
           (advice-add trigger :after #'imbot--prefix-override-add)))
+      (advice-remove #'execute-kbd-macro #'imbot--non-interactive)
       (imbot--hook-handler 'remove-hook)
       (imbot--prefix-override-remove)
       (dolist (trigger imbot--prefix-reinstate-triggers)
