@@ -18,3 +18,11 @@ Put the files on load-path, or install ~imbot~ from ~melpa~.
 #+END_SRC
 
 2. Make sure your input method remember's each applications last input state. For example, if you use fcitx5, you have to set the "Share Input Method" option to "No".
+
+* Advanced Usage for fcitx5 users
+If you find pre command checker for input status is slow, the input status can be obtained with a lua script for fcitx5.
+Please follow instructions below:
+
+1. disable pre command check with (setq imbot--active-omit-check t)
+2. put update_im_state.sh under ~/.local/bin/
+3. put "addon" and "lua" under ~/.local/share/fcitx5/
