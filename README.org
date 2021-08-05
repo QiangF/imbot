@@ -7,17 +7,18 @@
 Put the files on load-path, or install ~imbot~ from ~melpa~.
 
 * Config
-1. Please follow the imbot--im-config examples in imbot--fcitx5.el or imbot--ibus.el.
+1. For Windows and Mac users, commands for input method toggle can be found at https://github.com/laishulu/emacs-smart-input-source
+2. If your commands for input method toggle were not covered in the provided setups, please follow the imbot--im-config examples in imbot--fcitx5.el or imbot--ibus.el to make imbot work.
+3. Make sure your input method remembers each application's last input state. For example, if you use fcitx5, you have to set the "Share Input Method" option to "No".
+4. An example configuration using use-package:
 
 #+BEGIN_SRC lisp
 (use-package imbot
     :hook
         (evil-mode . imbot-mode)
-    :config
+    :preface
         (setq imbot--im-config 'imbot--fcitx5))
 #+END_SRC
-
-2. Make sure your input method remember's each applications last input state. For example, if you use fcitx5, you have to set the "Share Input Method" option to "No".
 
 * Advanced Usage for fcitx5 users
 If you find pre command checker for input status is slow, the input status can be obtained with a lua script for fcitx5.
@@ -26,3 +27,4 @@ Please follow instructions below:
 1. disable pre command check with (setq imbot--active-omit-check t)
 2. put update_im_state.sh under ~/.local/bin/
 3. put "addon" and "lua" under ~/.local/share/fcitx5/
+4. the default input method toggle shortcut is Ctrl+\ , the hot key is set in state_monitor.lua
