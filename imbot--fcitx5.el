@@ -26,14 +26,12 @@
   (not (equal (fcitx5-dbus-call-method "State")
               imbot-english-engine-tag)))
 
-(defun imbot--activate ()
-  (unless imbot--active-checked
-    (setq imbot--active-checked t)
-    (fcitx5-dbus-call-method "Activate")))
+(defun imbot--activate-force ()
+  (setq imbot--active-checked t)
+  (fcitx5-dbus-call-method "Activate"))
 
-(defun imbot--deactivate ()
-  (when imbot--active-checked
-    (setq imbot--active-checked nil)
-    (fcitx5-dbus-call-method "Deactivate")))
+(defun imbot--deactivate-force ()
+  (setq imbot--active-checked nil)
+  (fcitx5-dbus-call-method "Deactivate"))
 
 (provide 'imbot--fcitx5)
