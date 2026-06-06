@@ -80,7 +80,7 @@
             (or
              ;; switch to English when one space follows Chinse character
              ;; \cC represents any character of category “C”, according to “M-x describe-categories”
-             (looking-back "\\cC " (max visual-line-beginning (- point 2)))
+             (looking-back "\\cc " (max visual-line-beginning (- point 2)))
              (string-match "^\\s-*[0-9]+$" (buffer-substring-no-properties visual-line-beginning point))
              ;; (looking-at-p "^\\*")    ; org heading
              (looking-back "[a-zA-Z\\_-]" (max visual-line-beginning (1- point))))))
@@ -243,7 +243,7 @@ Optional argument FRAME ."
 
 (defun imbot-translate (key orig-buffer)
   "流程：
-1. 使用函数 `read-key-sequence' 得到 key-sequence
+1. 使用函数 `read-key-sequence-vector' 得到 key-sequence
 2. 使用函数 `lookup-key' 查询 `imbot--map' 中述 key-sequence 的命令。
 3. 如果查询得到的命令是 self-insert-command 时，调用这个函数。
 4. 这个函数最终会返回需要插入到 buffer 的字符串。
@@ -257,6 +257,8 @@ Optional argument FRAME ."
              (help-char nil)
              (inhibit-modification-hooks t)
              (inhibit-quit t)
+             ;; Temporarily increase gc-cons-threshold to prevent possible lag
+             (gc-cons-threshold (ceiling (* gc-cons-threshold 1.1)))
              (input-method-function nil)
              (input-method-use-echo-area nil))
         ;; preedit sometimes not empty
@@ -264,19 +266,19 @@ Optional argument FRAME ."
         (imbot-set-unread-command-events key)
         (setq imbot--commit nil)
         (while (not imbot--commit)
-          ;; note the difference between read-key-sequence and this-single-command-raw-keys
+          ;; Note: read-key-sequence-vector guarantees a vector return type,
+          ;; preventing type discrepancies and capturing fresh mid-loop keystrokes.
           ;; t as the fourth argument, return the raw keys even if this sequence isn't bound
-          (let* ((seq-direct (read-key-sequence nil nil nil t nil t))
-                 ;; fix backspace
-                 (keyseq (this-single-command-raw-keys))
-                 (first (aref keyseq 0))
+          (let* ((seq-direct (read-key-sequence-vector nil nil nil t nil t))
+                 ;; Extract the event directly from the fresh vector stream
+                 (first (aref seq-direct 0))
                  ;; mouse click is a list (down-mouse-1 (#<window ...> ...))
                  ;; describing the window, coordinates, and timestamp of your click
                  ;; use with `arrayp` or `vectorp`, not `sequencep`
                  ;; vectorp on mouse click event is nil
                  (event (if (vectorp first) (aref first 0) first))
                  commit handled)
-            ;; (message "%s" event)
+            ;; (message "seq-direct %s event %s" seq-direct event)
             (unless
                 ;; (mouse-event-p (elt event 0)
                 (sequencep event)
@@ -302,7 +304,7 @@ Optional argument FRAME ."
                                        :right-fringe 5
                                        :y-pixel-offset 5
                                        :string (imbot-backend-format-tooltip))
-                        ;; Force Emacs to render the child frame immediately before locking on the next read-key-sequence
+                        ;; Force Emacs to render the child frame immediately before locking on the next read-key-sequence-vector
                         (redisplay))
                     ;; lookup keybinding and call corresponding command, while keep the translating loop
                     (let* ((binding (and (arrayp event)
@@ -315,9 +317,9 @@ Optional argument FRAME ."
                         ;; either tooltip empty and commit non-empty, or tooltip non-empty commit nil
                         (imbot--finish (and commit
                                             (string-to-list commit)))
-                      ;; not in a composition, non-char character will not trigger input method
-                      ;; return event(s) will get recursion, so return the character
-                      (imbot--finish (listify-key-sequence (this-single-command-raw-keys))))
+                      ;; Not in a composition: convert our cleanly captured vector
+                      ;; to a list so Emacs can execute it normally outside the input method.
+                      (imbot--finish (listify-key-sequence seq-direct)))
                   (unless (eq orig-buffer (current-buffer))
                     (imbot--finish)))))))
         imbot--commit)

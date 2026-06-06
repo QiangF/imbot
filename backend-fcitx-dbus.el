@@ -180,6 +180,7 @@ You then interact with this new object path for input method operations. "
                          (<= clean-event ?Z)))
          (mods (event-modifiers event))
          (mask 0) keysym)
+    ;; (message "base %s event %s mods %s" base event mods)
 
     ;; 1. Calculate the Mask (Fcitx5/X11 standard)
     (when (memq 'shift mods) (setq mask (logior mask (ash 1 0))))   ; ShiftMask
@@ -191,18 +192,28 @@ You then interact with this new object path for input method operations. "
     ;; fcitx5 doesn't accept upper case letter as first char
     ;; capital letter in other places is accepted, eg. /Phi
     (cond
-     ;; Case A: It's a character (integer)
+     ;; Case A: It's a character or control integer (Common in Terminals)
      ((integerp base)
-      ;; Handle control characters (e.g., C-a is ASCII 1)
-      ;; Fcitx5 usually wants the 'raw' keysym + mask
-      (if (and (memq 'control mods) (< base 32))
-          (setq keysym (+ base 96)) ;; Map ASCII 1 to 'a' (97)
+      (cond
+       ((= base 127) (setq keysym 65288)) ; ASCII DEL -> X11 Backspace
+       ((= base 8) (setq keysym 65288))   ; ASCII C-h -> X11 Backspace
+       ;; return event is 13, base is 109, mods is (control)
+       ((= event 13) (progn (setq keysym 65293)
+                            (setq mask 0)))
+       ((= base 13) (setq keysym 65293)) ; ASCII CR  -> X11 Return
+       ((= base 10) (setq keysym 65293)) ; ASCII LF  -> X11 Return
+       ((= base 27) (setq keysym 65307)) ; ASCII ESC -> X11 Escape
+       ;; Handle control characters (e.g., C-a is ASCII 1)
+       ;; Fcitx5 usually wants the 'raw' keysym + mask
+       ((and (memq 'control mods) (< base 32))
+        (setq keysym (+ base 96)))      ; Map ASCII 1 (C-a) to 'a' (97)
+       (t
         (if capital-p
             ;; captial letter event does not have shift mod
             (setq keysym clean-event)
-          (setq keysym base))))
+          (setq keysym base)))))
 
-     ;; Case B: It's a symbol (e.g., 'return, 'backspace, 'f1)
+     ;; Case B: It's a symbol (Common in GUI)
      ((symbolp base)
       (setq keysym
             (let ((name (symbol-name base)))
@@ -267,25 +278,36 @@ You then interact with this new object path for input method operations. "
 ;;  0 0 nil t)
 (defun imbot-backend-format-tooltip ()
   "Build candidate menu tooltip from imbot context."
-  (destructuring-bind (preedit cursorpos auxUp auxDown candidates candidateIndex layoutHint hasPrev hasNext) imbot--tooltip
-    (let (prompt-str page-str candidate-str)
-      (when preedit (setq prompt-str (with-temp-buffer
-                                       (insert (caar preedit))
-                                       (goto-char (1+ cursorpos))
-                                       (insert "˰")
-                                       (buffer-string)))
-            (when candidates
-              (setq page-str (mapconcat (lambda (c)
-                                          (if (car c) (cadr c) ""))
-                                        (list (list hasPrev "<") (list hasNext ">"))))
-              (setq candidate-str
-                    (mapconcat (lambda (c)
-                                 (let ((idx (string-trim (car c)))
-                                       (word (cadr c)))
-                                   (if (= (1- (string-to-number idx)) candidateIndex)
-                                       (format "[%s%s]" idx word)
-                                     (format "%s%s" idx word)))) candidates " ")))
-            (concat prompt-str page-str "\n" candidate-str)))))
+  (destructuring-bind (preedit cursorpos auxUp auxDown candidates candidateIndex layoutHint hasPrev hasNext)
+      imbot--tooltip
+    (let* (;; Helper function to extract and concatenate strings from a(si) dbus arrays
+           (extract-strings (lambda (arr)
+                              (mapconcat (lambda (item) (car item)) arr "")))
+
+           ;; Extract the actual strings
+           (preedit-str (funcall extract-strings preedit))
+           ;; (aux-up-str (funcall extract-strings auxUp))
+           (aux-down-str (funcall extract-strings auxDown)) 
+           prompt-str page-str candidate-str)
+      (setq prompt-str (with-temp-buffer
+                         ;; (insert (caar preedit))
+                         (insert preedit-str)
+                         (goto-char (1+ cursorpos))
+                         (insert "˰")
+                         (insert aux-down-str)
+                         (buffer-string)))
+      (when candidates
+        (setq page-str (mapconcat (lambda (c)
+                                    (if (car c) (cadr c) ""))
+                                  (list (list hasPrev "<") (list hasNext ">"))))
+        (setq candidate-str
+              (mapconcat (lambda (c)
+                           (let ((idx (string-trim (car c)))
+                                 (word (cadr c)))
+                             (if (= (1- (string-to-number idx)) candidateIndex)
+                                 (format "[%s%s]" idx word)
+                               (format "%s%s" idx word)))) candidates " ")))
+      (concat prompt-str page-str "\n" candidate-str))))
 
 (defun imbot-backend-clear-composition ()
   (fcitx-ic-call "Reset"))
@@ -296,7 +318,6 @@ You then interact with this new object path for input method operations. "
 (defun imbot-backend-send-escape ()
   "Clear the composition."
   (interactive)
-  (let ((event (fcitx-translate-emacs-key (kbd "ESC"))))
-    (imbot-backend-process-key (car event) (cdr event))))
+  (fcitx-process-key 65307 0))
 
 (provide 'backend-fcitx-dbus)
